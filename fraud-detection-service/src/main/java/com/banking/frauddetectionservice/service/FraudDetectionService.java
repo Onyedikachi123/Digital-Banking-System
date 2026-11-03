@@ -10,6 +10,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,10 @@ public class FraudDetectionService {
 
     @Value("${fraud.suspicious-amount-multiplier}")
     private double suspiciousAmountMultiplier;
+
+    @Value("${fraud.max-balance-percentage}")
+    private double maxBalancePercentage;
+
 
     private static final String VERIFICATION_REQUIRED_TOPIC = "verification.required";
     private static final String FRAUD_CHECK_CLEAN_RESULT_TOPIC = "fraud.check.clean";
@@ -131,8 +136,29 @@ public class FraudDetectionService {
 
         BigDecimal avgAmount = new BigDecimal(avgStr);
         BigDecimal threshold = avgAmount.multiply(
+                 BigDecimal.valueOf(suspiciousAmountMultiplier));
 
-        )
+        // Update running average
+        BigDecimal newAvg = avgAmount.add(amount)
+                .divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+
+        redisTemplate.opsForValue().set(avgKey, newAvg.toString());
+
+        log.info("Amount check - amount: {} threshold: {} suspicious: {}",
+                amount, threshold, amount.compareTo(threshold) > 0);
+
+        return  amount.compareTo(threshold) > 0;
+    }
+
+    private boolean isBalanceCheckFailed(BigDecimal senderBalance, BigDecimal amount){
+
+        BigDecimal maxAllowed = senderBalance.multiply(
+                BigDecimal.valueOf(maxBalancePercentage));
+
+        log.info("Balance check - amount: {} maxAllowed: {} suscpious: {}",
+                amount, maxAllowed, amount.compareTo(maxAllowed) > 0);
+
+        return amount.compareTo(maxAllowed) > 0;
     }
 
 }
