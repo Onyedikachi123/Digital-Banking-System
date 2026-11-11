@@ -6,6 +6,7 @@ import com.banking.transactionservice.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -33,6 +34,7 @@ public class TransactionEventConsumer {
      * Generate OTP and ask user to verify
      * @param payload
      */
+    @KafkaListener(topics = "verification.required")
     public void consumeVerificationRequired(
             @Payload Map<String, Object> payload){
 
@@ -81,6 +83,22 @@ public class TransactionEventConsumer {
 
         } catch (Exception e) {
             log.error("Error handling verification required: {}", e.getMessage());
+
+        }
+
+    }
+
+    @KafkaListener(topics = "fraud.check.clean")
+    public void consumeFraudCheckCleanResult(
+            @Payload Map<String, Object> payload){
+
+        try {
+
+            String transactionId = (String) payload.get("transactionId");
+            transactionService.processCleanResult(transactionId);
+
+        } catch (Exception e) {
+            log.error("Error processing fraud check result: {}", e.getMessage());
 
         }
 
